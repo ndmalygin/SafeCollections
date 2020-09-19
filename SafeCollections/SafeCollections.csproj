@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <Authors>Malygin Nickolay Dmitrievich</Authors>
+    <Description>Thread safe collection based on Hashset with event notifications.</Description>
+    <Product>SafeCollections</Product>
+    <Company />
+  </PropertyGroup>
+
+</Project>
