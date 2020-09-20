@@ -9,7 +9,7 @@ namespace SafeCollections
     ///     Generic thread-safe collection based on Hashset with O(1) on remove / add operations.
     /// </summary>
     /// <typeparam name="T">Generic type.</typeparam>
-    public class SafeList<T>
+    public class SafeList<T> : IDisposable
     {
         /// <summary>
         ///     Data set.
@@ -166,6 +166,14 @@ namespace SafeCollections
             {
                 _lock.ExitReadLock();
             }
+        }
+
+        /// <summary>
+        /// Free resources.
+        /// </summary>
+        public void Dispose()
+        {
+            _lock.Dispose();
         }
     }
 }
