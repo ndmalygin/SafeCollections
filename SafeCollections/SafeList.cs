@@ -19,7 +19,7 @@ namespace SafeCollections
         /// <summary>
         ///     Thread lock.
         /// </summary>
-        private readonly AutoResetEvent _lock = new AutoResetEvent(true);
+        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
 
         /// <summary>
         ///     Event message for external listeners.
@@ -30,14 +30,24 @@ namespace SafeCollections
         ///     Add item to data set.
         /// </summary>
         /// <param name="item">Item.</param>
-        public void AddItem(T item)
+        public bool AddItem(T item)
         {
-            _lock.WaitOne();
-            var before = _list.ToArray();
-            _list.Add(item);
-            CollectionChanged?.Invoke(this,
-                new CollectionChangedArgs<T>(new[] {item}, before, CollectionChangedTypeEnum.Added));
-            _lock.Set();
+            var before = GetAll();
+            try
+            {
+                _lock.EnterWriteLock();
+                var added = _list.Add(item);
+
+                CollectionChanged?.Invoke(this,
+                    new CollectionChangedArgs<T>(new[] { item }, before, added ? CollectionChangedTypeEnum.Added :
+                        CollectionChangedTypeEnum.ItemIsAlreadyExisted));
+
+                return added;
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
         }
 
         /// <summary>
@@ -46,12 +56,26 @@ namespace SafeCollections
         /// <param name="items">Items.</param>
         public void AddItems(T[] items)
         {
-            _lock.WaitOne();
-            var before = _list.ToArray();
-            foreach (var item in items) _list.Add(item);
-            CollectionChanged?.Invoke(this,
-                new CollectionChangedArgs<T>(items, before, CollectionChangedTypeEnum.Added));
-            _lock.Set();
+            var before = GetAll();
+            try
+            {
+                var added = new List<T>();
+                _lock.EnterWriteLock();
+                foreach (var item in items)
+                {
+                    if (_list.Add(item))
+                    {
+                        added.Add(item);
+                    }
+                }
+
+                CollectionChanged?.Invoke(this,
+                    new CollectionChangedArgs<T>(added.ToArray(), before, CollectionChangedTypeEnum.Added));
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
         }
 
         /// <summary>
@@ -61,15 +85,22 @@ namespace SafeCollections
         /// <returns>Item.</returns>
         public bool RemoveItem(T item)
         {
-            _lock.WaitOne();
-            var before = _list.ToArray();
-            var removed = _list.Remove(item);
-            if (removed)
-                CollectionChanged?.Invoke(this,
-                    new CollectionChangedArgs<T>(new[] {item}, before, CollectionChangedTypeEnum.Removed));
-            _lock.Set();
+            var before = GetAll();
+            try
+            {
+                _lock.EnterWriteLock();
+                var removed = _list.Remove(item);
 
-            return removed;
+                CollectionChanged?.Invoke(this,
+                    new CollectionChangedArgs<T>(new[] { item }, before, removed ? CollectionChangedTypeEnum.Removed :
+                        CollectionChangedTypeEnum.ItemNotFound));
+
+                return removed;
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
         }
 
         /// <summary>
@@ -78,15 +109,26 @@ namespace SafeCollections
         /// <param name="items">Items.</param>
         public void RemoveItems(T[] items)
         {
-            _lock.WaitOne();
-            var before = _list.ToArray();
-            var removed = new List<T>();
-            foreach (var item in items)
-                if (_list.Remove(item))
-                    removed.Add(item);
-            CollectionChanged?.Invoke(this,
-                new CollectionChangedArgs<T>(removed.ToArray(), before, CollectionChangedTypeEnum.Removed));
-            _lock.Set();
+            var before = GetAll();
+            try
+            {
+                _lock.EnterWriteLock();
+                var removed = new List<T>();
+                foreach (var item in items)
+                {
+                    if (_list.Remove(item))
+                    {
+                        removed.Add(item);
+                    }
+                }
+
+                CollectionChanged?.Invoke(this,
+                    new CollectionChangedArgs<T>(removed.ToArray(), before, CollectionChangedTypeEnum.Removed));
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
         }
 
         /// <summary>
@@ -94,12 +136,36 @@ namespace SafeCollections
         /// </summary>
         public void ClearAll()
         {
-            _lock.WaitOne();
-            var before = _list.ToArray();
-            _list.Clear();
-            CollectionChanged?.Invoke(this,
-                new CollectionChangedArgs<T>(null, before, CollectionChangedTypeEnum.Cleared));
-            _lock.Set();
+            var before = GetAll();
+            try
+            {
+                _lock.EnterWriteLock();
+                _list.Clear();
+
+                CollectionChanged?.Invoke(this,
+                    new CollectionChangedArgs<T>(null, before, CollectionChangedTypeEnum.Cleared));
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
+        }
+
+        /// <summary>
+        ///     Get all data set items.
+        /// </summary>
+        /// <returns></returns>
+        private T[] GetAll()
+        {
+            try
+            {
+                _lock.EnterReadLock();
+                return _list.ToArray();
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
         }
     }
 }

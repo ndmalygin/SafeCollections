@@ -11,7 +11,7 @@ namespace SafeCollections_UT
     /// </summary>
     public sealed class SafeList_UT
     {
-        private readonly SafeList<int> _list = new SafeList<int>();
+        private readonly SafeList<DummyObject> _list = new SafeList<DummyObject>();
 
         [Theory]
         [InlineData(100)]
@@ -60,8 +60,9 @@ namespace SafeCollections_UT
             safeList.RemoveItems(new[] {item});
         }
 
-        private void RemoveItem(int item)
+        private void RemoveItem(int id)
         {
+            var item = new DummyObject(id);
             _list.AddItem(item);
             Assert.True(_list.RemoveItem(item));
         }
