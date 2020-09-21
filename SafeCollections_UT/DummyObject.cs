@@ -5,7 +5,7 @@ using System.Text;
 namespace SafeCollections_UT
 {
     /// <summary>
-    /// UT object.
+    ///     UT object.
     /// </summary>
     internal sealed class DummyObject
     {

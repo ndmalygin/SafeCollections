@@ -12,6 +12,11 @@ namespace SafeCollections
     public class SafeList<T> : IDisposable
     {
         /// <summary>
+        ///     Send collection items, before sending changes.
+        /// </summary>
+        private readonly bool _sendCollectionState;
+
+        /// <summary>
         ///     Data set.
         /// </summary>
         private readonly HashSet<T> _list = new HashSet<T>();
@@ -24,7 +29,23 @@ namespace SafeCollections
         /// <summary>
         ///     Event message for external listeners.
         /// </summary>
-        public event EventHandler<CollectionChangedArgs<T>> CollectionChanged;
+        private event EventHandler<CollectionEventArgs<T>> CollectionEventHandler;
+
+        /// <summary>
+        ///     Default constructor.
+        /// </summary>
+        public SafeList() : this(true)
+        {
+        }
+
+        /// <summary>
+        ///     Constructor.
+        /// </summary>
+        /// <param name="sendCollectionState">If true, send collection items before sending changes.</param>
+        public SafeList(bool sendCollectionState)
+        {
+            _sendCollectionState = sendCollectionState;
+        }
 
         /// <summary>
         ///     Add item to data set.
@@ -32,15 +53,13 @@ namespace SafeCollections
         /// <param name="item">Item.</param>
         public bool AddItem(T item)
         {
-            var before = GetAll();
             try
             {
                 _lock.EnterWriteLock();
                 var added = _list.Add(item);
 
-                CollectionChanged?.Invoke(this,
-                    new CollectionChangedArgs<T>(new[] { item }, before, added ? CollectionChangedTypeEnum.Added :
-                        CollectionChangedTypeEnum.ItemIsAlreadyExisted));
+                CollectionEventHandler?.Invoke(this,new CollectionEventArgs<T>(new[] { item }, added ? CollectionEventTypeEnum.Added :
+                        CollectionEventTypeEnum.ItemIsAlreadyExisted));
 
                 return added;
             }
@@ -56,7 +75,6 @@ namespace SafeCollections
         /// <param name="items">Items.</param>
         public void AddItems(T[] items)
         {
-            var before = GetAll();
             try
             {
                 var added = new List<T>();
@@ -69,8 +87,7 @@ namespace SafeCollections
                     }
                 }
 
-                CollectionChanged?.Invoke(this,
-                    new CollectionChangedArgs<T>(added.ToArray(), before, CollectionChangedTypeEnum.Added));
+                CollectionEventHandler?.Invoke(this,new CollectionEventArgs<T>(added.ToArray(), CollectionEventTypeEnum.Added));
             }
             finally
             {
@@ -85,15 +102,13 @@ namespace SafeCollections
         /// <returns>Item.</returns>
         public bool RemoveItem(T item)
         {
-            var before = GetAll();
             try
             {
                 _lock.EnterWriteLock();
                 var removed = _list.Remove(item);
 
-                CollectionChanged?.Invoke(this,
-                    new CollectionChangedArgs<T>(new[] { item }, before, removed ? CollectionChangedTypeEnum.Removed :
-                        CollectionChangedTypeEnum.ItemNotFound));
+                CollectionEventHandler?.Invoke(this,new CollectionEventArgs<T>(new[] { item }, removed ? CollectionEventTypeEnum.Removed :
+                        CollectionEventTypeEnum.ItemNotFound));
 
                 return removed;
             }
@@ -109,7 +124,6 @@ namespace SafeCollections
         /// <param name="items">Items.</param>
         public void RemoveItems(T[] items)
         {
-            var before = GetAll();
             try
             {
                 _lock.EnterWriteLock();
@@ -122,8 +136,7 @@ namespace SafeCollections
                     }
                 }
 
-                CollectionChanged?.Invoke(this,
-                    new CollectionChangedArgs<T>(removed.ToArray(), before, CollectionChangedTypeEnum.Removed));
+                CollectionEventHandler?.Invoke(this,new CollectionEventArgs<T>(removed.ToArray(), CollectionEventTypeEnum.Removed));
             }
             finally
             {
@@ -136,19 +149,49 @@ namespace SafeCollections
         /// </summary>
         public void ClearAll()
         {
-            var before = GetAll();
             try
             {
                 _lock.EnterWriteLock();
                 _list.Clear();
 
-                CollectionChanged?.Invoke(this,
-                    new CollectionChangedArgs<T>(null, before, CollectionChangedTypeEnum.Cleared));
+                CollectionEventHandler?.Invoke(this, new CollectionEventArgs<T>(null, CollectionEventTypeEnum.Cleared));
             }
             finally
             {
                 _lock.ExitWriteLock();
             }
+        }
+
+        /// <summary>
+        ///     Free resources.
+        /// </summary>
+        public void Dispose()
+        {
+            _lock.Dispose();
+        }
+
+        /// <summary>
+        ///     Sign on events.
+        /// </summary>
+        /// <param name="handler">The handler.</param>
+        public void SignOnEvents(EventHandler<CollectionEventArgs<T>> handler)
+        {
+            // Send collection state (all items) before sending changes.
+            if (_sendCollectionState)
+            {
+                handler.Invoke(this, new CollectionEventArgs<T>(GetAll(), CollectionEventTypeEnum.None));
+            }
+
+            CollectionEventHandler += handler;
+        }
+
+        /// <summary>
+        ///     Unsign from events.
+        /// </summary>
+        /// <param name="handler">The handler.</param>
+        public void UnSignFromEvents(EventHandler<CollectionEventArgs<T>> handler)
+        {
+            CollectionEventHandler -= handler;
         }
 
         /// <summary>
@@ -166,14 +209,6 @@ namespace SafeCollections
             {
                 _lock.ExitReadLock();
             }
-        }
-
-        /// <summary>
-        /// Free resources.
-        /// </summary>
-        public void Dispose()
-        {
-            _lock.Dispose();
         }
     }
 }

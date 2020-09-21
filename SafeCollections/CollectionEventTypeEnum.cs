@@ -1,9 +1,9 @@
 ﻿namespace SafeCollections
 {
     /// <summary>
-    ///     Change type.
+    ///     Event type.
     /// </summary>
-    public enum CollectionChangedTypeEnum
+    public enum CollectionEventTypeEnum
     {
         /// <summary>
         ///     Items were added to collection.
@@ -28,6 +28,11 @@
         /// <summary>
         ///     Collection was dropped.
         /// </summary>
-        Cleared
+        Cleared,
+
+        /// <summary>
+        ///     No changes.
+        /// </summary>
+        None
     }
 }
