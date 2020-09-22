@@ -58,7 +58,7 @@ namespace SafeCollections
                 _lock.EnterWriteLock();
                 var added = _list.Add(item);
 
-                CollectionEventHandler?.Invoke(this,new CollectionEventArgs<T>(new[] { item }, added ? CollectionEventTypeEnum.Added :
+                CollectionEventHandler?.Invoke(this, new CollectionEventArgs<T>(new[] { item }, added ? CollectionEventTypeEnum.Added :
                         CollectionEventTypeEnum.ItemIsAlreadyExisted));
 
                 return added;
@@ -87,7 +87,7 @@ namespace SafeCollections
                     }
                 }
 
-                CollectionEventHandler?.Invoke(this,new CollectionEventArgs<T>(added.ToArray(), CollectionEventTypeEnum.Added));
+                CollectionEventHandler?.Invoke(this, new CollectionEventArgs<T>(added.ToArray(), CollectionEventTypeEnum.Added));
             }
             finally
             {
@@ -107,7 +107,7 @@ namespace SafeCollections
                 _lock.EnterWriteLock();
                 var removed = _list.Remove(item);
 
-                CollectionEventHandler?.Invoke(this,new CollectionEventArgs<T>(new[] { item }, removed ? CollectionEventTypeEnum.Removed :
+                CollectionEventHandler?.Invoke(this, new CollectionEventArgs<T>(new[] { item }, removed ? CollectionEventTypeEnum.Removed :
                         CollectionEventTypeEnum.ItemNotFound));
 
                 return removed;
@@ -136,7 +136,7 @@ namespace SafeCollections
                     }
                 }
 
-                CollectionEventHandler?.Invoke(this,new CollectionEventArgs<T>(removed.ToArray(), CollectionEventTypeEnum.Removed));
+                CollectionEventHandler?.Invoke(this, new CollectionEventArgs<T>(removed.ToArray(), CollectionEventTypeEnum.Removed));
             }
             finally
             {
@@ -179,10 +179,21 @@ namespace SafeCollections
             // Send collection state (all items) before sending changes.
             if (_sendCollectionState)
             {
-                handler.Invoke(this, new CollectionEventArgs<T>(GetAll(), CollectionEventTypeEnum.None));
+                try
+                {
+                    _lock.EnterReadLock();
+                    handler.Invoke(this, new CollectionEventArgs<T>(_list.ToArray(), CollectionEventTypeEnum.None));
+                    CollectionEventHandler += handler;
+                }
+                finally
+                {
+                    _lock.ExitReadLock();
+                }
             }
-
-            CollectionEventHandler += handler;
+            else
+            {
+                CollectionEventHandler += handler;
+            }
         }
 
         /// <summary>
@@ -192,23 +203,6 @@ namespace SafeCollections
         public void UnSignFromEvents(EventHandler<CollectionEventArgs<T>> handler)
         {
             CollectionEventHandler -= handler;
-        }
-
-        /// <summary>
-        ///     Get all data set items.
-        /// </summary>
-        /// <returns></returns>
-        private T[] GetAll()
-        {
-            try
-            {
-                _lock.EnterReadLock();
-                return _list.ToArray();
-            }
-            finally
-            {
-                _lock.ExitReadLock();
-            }
         }
     }
 }
