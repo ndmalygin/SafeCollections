@@ -1,0 +1,2 @@
+DOTNET_STARTUP_PROJECT=SafeCollections/SafeCollections.csproj
+DOTNET_TEST_PROJECTS=SafeCollections_UT/SafeCollections_UT.csproj
