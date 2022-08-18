@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Authors>Malygin Nickolay Dmitrievich</Authors>
     <Description>Thread safe collection based on Hashset with event notifications.</Description>
