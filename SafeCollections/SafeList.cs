@@ -24,7 +24,7 @@ namespace SafeCollections
         /// <summary>
         ///     Thread lock.
         /// </summary>
-        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
+        private readonly ReaderWriterLockSlim _lock = new();
 
         /// <summary>
         ///     Event message for external listeners.
