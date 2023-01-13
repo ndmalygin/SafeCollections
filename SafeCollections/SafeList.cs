@@ -19,7 +19,7 @@ namespace SafeCollections
         /// <summary>
         ///     Data set.
         /// </summary>
-        private readonly HashSet<T> _list = new HashSet<T>();
+        private readonly HashSet<T> _list = new();
 
         /// <summary>
         ///     Thread lock.
@@ -34,9 +34,7 @@ namespace SafeCollections
         /// <summary>
         ///     Default constructor.
         /// </summary>
-        public SafeList() : this(true)
-        {
-        }
+        public SafeList() : this(true) { }
 
         /// <summary>
         ///     Constructor.
@@ -58,8 +56,15 @@ namespace SafeCollections
                 _lock.EnterWriteLock();
                 var added = _list.Add(item);
 
-                CollectionEventHandler?.Invoke(this, new CollectionEventArgs<T>(new[] { item }, added ? CollectionEventTypeEnum.Added :
-                        CollectionEventTypeEnum.ItemIsAlreadyExisted));
+                CollectionEventHandler?.Invoke(
+                    this,
+                    new CollectionEventArgs<T>(
+                        new[] { item },
+                        added
+                            ? CollectionEventTypeEnum.Added
+                            : CollectionEventTypeEnum.ItemIsAlreadyExisted
+                    )
+                );
 
                 return added;
             }
@@ -87,7 +92,10 @@ namespace SafeCollections
                     }
                 }
 
-                CollectionEventHandler?.Invoke(this, new CollectionEventArgs<T>(added.ToArray(), CollectionEventTypeEnum.Added));
+                CollectionEventHandler?.Invoke(
+                    this,
+                    new CollectionEventArgs<T>(added.ToArray(), CollectionEventTypeEnum.Added)
+                );
             }
             finally
             {
@@ -107,8 +115,15 @@ namespace SafeCollections
                 _lock.EnterWriteLock();
                 var removed = _list.Remove(item);
 
-                CollectionEventHandler?.Invoke(this, new CollectionEventArgs<T>(new[] { item }, removed ? CollectionEventTypeEnum.Removed :
-                        CollectionEventTypeEnum.ItemNotFound));
+                CollectionEventHandler?.Invoke(
+                    this,
+                    new CollectionEventArgs<T>(
+                        new[] { item },
+                        removed
+                            ? CollectionEventTypeEnum.Removed
+                            : CollectionEventTypeEnum.ItemNotFound
+                    )
+                );
 
                 return removed;
             }
@@ -136,7 +151,10 @@ namespace SafeCollections
                     }
                 }
 
-                CollectionEventHandler?.Invoke(this, new CollectionEventArgs<T>(removed.ToArray(), CollectionEventTypeEnum.Removed));
+                CollectionEventHandler?.Invoke(
+                    this,
+                    new CollectionEventArgs<T>(removed.ToArray(), CollectionEventTypeEnum.Removed)
+                );
             }
             finally
             {
@@ -154,7 +172,10 @@ namespace SafeCollections
                 _lock.EnterWriteLock();
                 _list.Clear();
 
-                CollectionEventHandler?.Invoke(this, new CollectionEventArgs<T>(null, CollectionEventTypeEnum.Cleared));
+                CollectionEventHandler?.Invoke(
+                    this,
+                    new CollectionEventArgs<T>(null, CollectionEventTypeEnum.Cleared)
+                );
             }
             finally
             {
@@ -182,7 +203,10 @@ namespace SafeCollections
                 try
                 {
                     _lock.EnterReadLock();
-                    handler.Invoke(this, new CollectionEventArgs<T>(_list.ToArray(), CollectionEventTypeEnum.None));
+                    handler.Invoke(
+                        this,
+                        new CollectionEventArgs<T>(_list.ToArray(), CollectionEventTypeEnum.None)
+                    );
                     CollectionEventHandler += handler;
                 }
                 finally
