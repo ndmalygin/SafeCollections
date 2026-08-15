@@ -19,7 +19,7 @@ namespace SafeCollections
         /// <summary>
         ///     Data set.
         /// </summary>
-        private readonly HashSet<T> _list = new();
+        private readonly HashSet<T> _list = [];
 
         /// <summary>
         ///     Thread lock.
@@ -59,7 +59,7 @@ namespace SafeCollections
                 CollectionEventHandler?.Invoke(
                     this,
                     new CollectionEventArgs<T>(
-                        new[] { item },
+                        [item],
                         added
                             ? CollectionEventTypeEnum.Added
                             : CollectionEventTypeEnum.ItemIsAlreadyExisted
@@ -118,7 +118,7 @@ namespace SafeCollections
                 CollectionEventHandler?.Invoke(
                     this,
                     new CollectionEventArgs<T>(
-                        new[] { item },
+                        [item],
                         removed
                             ? CollectionEventTypeEnum.Removed
                             : CollectionEventTypeEnum.ItemNotFound

@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using SafeCollections;
 using Xunit;
+// ReSharper disable UnusedParameter.Local
 
 namespace SafeCollections_UT
 {
     /// <summary>
     ///     Unit tests for SafeList generic class.
     /// </summary>
+    // ReSharper disable once InconsistentNaming
     public sealed class SafeList_UT
     {
         private readonly SafeList<DummyObject> _list = new SafeList<DummyObject>();
@@ -53,6 +55,7 @@ namespace SafeCollections_UT
             var safeList = new SafeList<int>(false);
             safeList.AddItem(item);
             safeList.SignOnEvents(
+                // ReSharper disable once ParameterOnlyUsedForPreconditionCheck.Local
                 (sender, args) =>
                 {
                     Assert.Equal(item, args.Items[0]);
@@ -60,7 +63,7 @@ namespace SafeCollections_UT
                 }
             );
 
-            safeList.RemoveItems(new[] { item });
+            safeList.RemoveItems([item]);
         }
 
         private void RemoveItem(int id)
@@ -82,8 +85,8 @@ namespace SafeCollections_UT
                 tasks.Add(
                     new Task(() =>
                     {
-                        var i = random.Next();
-                        RemoveItem(i);
+                        var item = random.Next();
+                        RemoveItem(item);
                     })
                 );
             }
@@ -99,26 +102,26 @@ namespace SafeCollections_UT
             safeList.SignOnEvents(
                 (sender, args) =>
                 {
-                    Assert.Equal(new[] { 100, 200, 300 }, args.Items);
+                    Assert.Equal([100, 200, 300], args.Items);
                     Assert.Equal(CollectionEventTypeEnum.Added, args.CollectionEventType);
                 }
             );
 
-            safeList.AddItems(new[] { 100, 200, 300 });
+            safeList.AddItems([100, 200, 300]);
         }
 
         [Fact]
         public void ClearAllTest()
         {
             var safeList = new SafeList<int>();
-            safeList.AddItems(new[] { 100, 200, 300 });
+            safeList.AddItems([100, 200, 300]);
             safeList.SignOnEvents(
                 (sender, args) =>
                 {
                     switch (args.CollectionEventType)
                     {
                         case CollectionEventTypeEnum.None:
-                            Assert.Equal(new[] { 100, 200, 300 }, args.Items);
+                            Assert.Equal([100, 200, 300], args.Items);
                             break;
                         default:
                             Assert.Null(args.Items);
@@ -135,24 +138,24 @@ namespace SafeCollections_UT
         public void RemoveItemsTest()
         {
             var safeList = new SafeList<int>();
-            safeList.AddItems(new[] { 100, 200, 300 });
+            safeList.AddItems([100, 200, 300]);
             safeList.SignOnEvents(
                 (sender, args) =>
                 {
                     switch (args.CollectionEventType)
                     {
                         case CollectionEventTypeEnum.None:
-                            Assert.Equal(new[] { 100, 200, 300 }, args.Items);
+                            Assert.Equal([100, 200, 300], args.Items);
                             break;
                         default:
-                            Assert.Equal(new[] { 100, 300 }, args.Items);
+                            Assert.Equal([100, 300], args.Items);
                             Assert.Equal(CollectionEventTypeEnum.Removed, args.CollectionEventType);
                             break;
                     }
                 }
             );
 
-            safeList.RemoveItems(new[] { 100, 300 });
+            safeList.RemoveItems([100, 300]);
         }
     }
 }
