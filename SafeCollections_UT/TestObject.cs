@@ -7,11 +7,11 @@ namespace SafeCollections_UT
     /// <summary>
     ///     UT object.
     /// </summary>
-    internal sealed class DummyObject
+    internal sealed class TestObject
     {
         public int Id { get; }
 
-        internal DummyObject(int id)
+        internal TestObject(int id)
         {
             Id = id;
         }

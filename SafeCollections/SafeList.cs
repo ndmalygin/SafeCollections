@@ -31,6 +31,38 @@ namespace SafeCollections
         /// </summary>
         private event EventHandler<CollectionEventArgs<T>> CollectionEventHandler;
 
+        // Items count
+        public int Length {
+            get
+            {
+                try
+                {
+                    _lock.EnterReadLock();
+                    return _list.Count();
+                }
+                finally
+                {
+                    _lock.ExitReadLock();
+                }
+            }
+        }
+
+        // Items
+        public T[] Items {
+            get
+            {
+                try
+                {
+                    _lock.EnterReadLock();
+                   return _list.ToArray();
+                }
+                finally
+                {
+                    _lock.ExitReadLock();
+                }
+            }
+        }
+
         /// <summary>
         ///     Default constructor.
         /// </summary>

@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using SafeCollections;
 using Xunit;
@@ -13,8 +15,6 @@ namespace SafeCollections_UT
     // ReSharper disable once InconsistentNaming
     public sealed class SafeList_UT
     {
-        private readonly SafeList<DummyObject> _list = new SafeList<DummyObject>();
-
         [Theory]
         [InlineData(100)]
         [InlineData(200)]
@@ -66,33 +66,79 @@ namespace SafeCollections_UT
             safeList.RemoveItems([item]);
         }
 
-        private void RemoveItem(int id)
-        {
-            var item = new DummyObject(id);
-            _list.AddItem(item);
-            Assert.True(_list.RemoveItem(item));
-        }
-
         [Theory]
         [InlineData(1000)]
-        public void RemoveMultiThreadingTest(int taskCount)
+        public void MultiThreadingTest(int taskCount)
         {
             var tasks = new List<Task>();
             var random = new Random();
 
+            var origList = new ConcurrentBag<TestObject>();
+            var safeList = new SafeList<TestObject>(false);
+            
+            EventHandler<CollectionEventArgs<TestObject>> handler = (sender, args) =>
+            {
+                Assert.Contains(args.Items[0], origList);
+                Assert.Equal(CollectionEventTypeEnum.Added, args.CollectionEventType);
+            };
+            
+            safeList.SignOnEvents(
+                handler
+            );
+            
             for (var i = 0; i < taskCount; i++)
             {
                 tasks.Add(
                     new Task(() =>
                     {
-                        var item = random.Next();
-                        RemoveItem(item);
+                        var item = new TestObject(random.Next());
+                        
+                        origList.Add(item);
+                        safeList.AddItem(item);                        
                     })
                 );
             }
 
             Parallel.ForEach(tasks, t => t.Start());
             Task.WhenAll(tasks);
+
+            Assert.Equal(taskCount, safeList.Length);
+
+            var items = safeList.Items;
+            foreach (var item in origList)
+                Assert.Contains(item, items);
+            
+            safeList.UnSignFromEvents(handler);
+            tasks.Clear();
+
+            handler = (sender, args) =>
+            {
+                Assert.Contains(args.Items[0], origList);
+                Assert.Equal(CollectionEventTypeEnum.Removed, args.CollectionEventType);
+            };
+            safeList.SignOnEvents(
+                handler
+            );
+            
+            var arr = origList.ToArray();
+            for (var i = 0; i < taskCount; i++)
+            {
+                var i1 = i;
+                tasks.Add(
+                    new Task(() =>
+                    {
+                        safeList.RemoveItem(arr[i1]);                        
+                    })
+                );
+            }
+
+            Parallel.ForEach(tasks, t => t.Start());
+            Task.WhenAll(tasks);
+            
+            Assert.Empty(safeList.Items);
+            Assert.Equal(0, safeList.Length);
+
+            safeList.UnSignFromEvents(handler);
         }
 
         [Fact]
