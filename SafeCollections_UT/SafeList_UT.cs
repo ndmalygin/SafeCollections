@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using SafeCollections;
 using Xunit;
+using System.Buffers;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 // ReSharper disable UnusedParameter.Local
 
 namespace SafeCollections_UT
@@ -210,6 +212,107 @@ namespace SafeCollections_UT
             );
 
             safeList.RemoveItems([100, 300]);
+        }
+        
+        [Fact]
+        public void ReentrancyAndDeadlockPreventionTest()
+        {
+            // Arrange
+            // Create a collection that sends its initial state upon subscription
+            var safeList = new SafeList<int>(sendCollectionState: true);
+            safeList.AddItem(42);
+
+            var readLengthDuringEvent = -1;
+            int[] itemsDuringEvent = null;
+            var isHandlerCalledOnAdd = false;
+
+            EventHandler<CollectionEventArgs<int>> handler = (sender, args) =>
+            {
+                // We simulate a reentrant call: trying to read from the collection 
+                // while being inside the event handler that was triggered by the collection itself.
+                if (args.CollectionEventType == CollectionEventTypeEnum.Added)
+                {
+                    isHandlerCalledOnAdd = true;
+                    
+                    // If the collection is holding a WriteLock here, these calls will cause a Deadlock 
+                    // or throw a LockRecursionException because ReaderWriterLockSlim is not reentrant by default.
+                    readLengthDuringEvent = safeList.Length;
+                    itemsDuringEvent = safeList.Items;
+                }
+            };
+
+            // Act
+            // Subscribe to events. This will invoke the handler for the initial state (42)
+            safeList.SignOnEvents(handler);
+
+            // Trigger an Added event. This will invoke the handler and test the reentrancy lock safety
+            safeList.AddItem(100);
+
+            // Clean up subscription
+            safeList.UnSignFromEvents(handler);
+
+            // Assert
+            // Verify that the handler was executed for the added item
+            Assert.True(isHandlerCalledOnAdd);
+            
+            // Verify that we successfully read data without deadlocking or crashing
+            Assert.Equal(2, readLengthDuringEvent);
+            Assert.NotNull(itemsDuringEvent);
+            Assert.Equal(2, itemsDuringEvent.Length);
+            Assert.Contains(42, itemsDuringEvent);
+            Assert.Contains(100, itemsDuringEvent);
+        }
+        
+        [Fact]
+        public unsafe void AddItemsUsingUnmanagedMemoryAndSpanTest()
+        {
+            // Arrange
+            var safeList = new SafeList<int>(false);
+            const int elementCount = 10;
+
+            // Allocating bytes directly in the unmanaged native heap
+            nuint byteCount = (nuint)(elementCount * sizeof(int));
+            int* nativePointer = (int*)NativeMemory.Alloc(byteCount);
+
+            try
+            {
+                // Initialize unmanaged memory data
+                for (int i = 0; i < elementCount; i++)
+                {
+                    nativePointer[i] = (i + 1) * 10; // 10, 20, 30... 100
+                }
+
+                // Wrap native pointer into a safe Span view for manipulation
+                Span<int> nativeSpan = new Span<int>(nativePointer, elementCount);
+
+                // Slice optimization demo: take a part of the span without allocating new memory
+                ReadOnlySpan<int> slicedSpan = nativeSpan.Slice(0, 5); // Takes first 5 elements
+
+                // Since SafeList expects an array, we extract it efficiently.
+                safeList.AddItems(slicedSpan.ToArray());
+            }
+            finally
+            {
+                NativeMemory.Free(nativePointer);
+            }
+
+            // Memory is placed entirely on the thread execution stack
+            Span<int> stackSpan = stackalloc int[3];
+            stackSpan[0] = 500;
+            stackSpan[1] = 600;
+            stackSpan[2] = 700;
+
+            // Act - Add stack-allocated data converted on-the-fly
+            safeList.AddItems(stackSpan.ToArray());
+
+            // Assert
+            // 5 elements from native slice + 3 elements from stack = 8 total
+            Assert.Equal(8, safeList.Length);
+            
+            var resultItems = safeList.Items;
+            Assert.Contains(30, resultItems);  // From unmanaged slice
+            Assert.Contains(600, resultItems); // From stack allocation
+            Assert.DoesNotContain(60, resultItems); // Elements after index 5 in native memory were sliced out
         }
     }
 }
