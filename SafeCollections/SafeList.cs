@@ -27,6 +27,11 @@ namespace SafeCollections
         private readonly ReaderWriterLockSlim _lock = new();
 
         /// <summary>
+        ///     Thread lock for events subscription.
+        /// </summary>
+        private readonly object _eventLock = new();
+
+        /// <summary>
         ///     Event message for external listeners.
         /// </summary>
         private event EventHandler<CollectionEventArgs<T>> CollectionEventHandler;
@@ -38,7 +43,7 @@ namespace SafeCollections
                 try
                 {
                     _lock.EnterReadLock();
-                    return _list.Count();
+                    return _list.Count;
                 }
                 finally
                 {
@@ -83,27 +88,30 @@ namespace SafeCollections
         /// <param name="item">Item.</param>
         public bool AddItem(T item)
         {
+            bool added;
+            CollectionEventArgs<T> eventArgs;
+
             try
             {
                 _lock.EnterWriteLock();
-                var added = _list.Add(item);
+                added = _list.Add(item);
 
-                CollectionEventHandler?.Invoke(
-                    this,
-                    new CollectionEventArgs<T>(
-                        [item],
-                        added
-                            ? CollectionEventTypeEnum.Added
-                            : CollectionEventTypeEnum.ItemIsAlreadyExisted
-                    )
+                eventArgs = new CollectionEventArgs<T>(
+                    [item],
+                    added
+                        ? CollectionEventTypeEnum.Added
+                        : CollectionEventTypeEnum.ItemIsAlreadyExisted
                 );
-
-                return added;
             }
             finally
             {
                 _lock.ExitWriteLock();
             }
+
+            // Invocation moved outside of WriteLock to prevent Deadlocks
+            CollectionEventHandler?.Invoke(this, eventArgs);
+
+            return added;
         }
 
         /// <summary>
@@ -112,9 +120,10 @@ namespace SafeCollections
         /// <param name="items">Items.</param>
         public void AddItems(T[] items)
         {
+            var added = new List<T>();
+
             try
             {
-                var added = new List<T>();
                 _lock.EnterWriteLock();
                 foreach (var item in items)
                 {
@@ -123,16 +132,16 @@ namespace SafeCollections
                         added.Add(item);
                     }
                 }
-
-                CollectionEventHandler?.Invoke(
-                    this,
-                    new CollectionEventArgs<T>(added.ToArray(), CollectionEventTypeEnum.Added)
-                );
             }
             finally
             {
                 _lock.ExitWriteLock();
             }
+
+            CollectionEventHandler?.Invoke(
+                this,
+                new CollectionEventArgs<T>(added.ToArray(), CollectionEventTypeEnum.Added)
+            );
         }
 
         /// <summary>
@@ -142,27 +151,29 @@ namespace SafeCollections
         /// <returns>Item.</returns>
         public bool RemoveItem(T item)
         {
+            bool removed;
+            CollectionEventArgs<T> eventArgs;
+
             try
             {
                 _lock.EnterWriteLock();
-                var removed = _list.Remove(item);
+                removed = _list.Remove(item);
 
-                CollectionEventHandler?.Invoke(
-                    this,
-                    new CollectionEventArgs<T>(
-                        [item],
-                        removed
-                            ? CollectionEventTypeEnum.Removed
-                            : CollectionEventTypeEnum.ItemNotFound
-                    )
+                eventArgs = new CollectionEventArgs<T>(
+                    [item],
+                    removed
+                        ? CollectionEventTypeEnum.Removed
+                        : CollectionEventTypeEnum.ItemNotFound
                 );
-
-                return removed;
             }
             finally
             {
                 _lock.ExitWriteLock();
             }
+
+            CollectionEventHandler?.Invoke(this, eventArgs);
+
+            return removed;
         }
 
         /// <summary>
@@ -171,10 +182,11 @@ namespace SafeCollections
         /// <param name="items">Items.</param>
         public void RemoveItems(T[] items)
         {
+            var removed = new List<T>();
+
             try
             {
                 _lock.EnterWriteLock();
-                var removed = new List<T>();
                 foreach (var item in items)
                 {
                     if (_list.Remove(item))
@@ -182,16 +194,16 @@ namespace SafeCollections
                         removed.Add(item);
                     }
                 }
-
-                CollectionEventHandler?.Invoke(
-                    this,
-                    new CollectionEventArgs<T>(removed.ToArray(), CollectionEventTypeEnum.Removed)
-                );
             }
             finally
             {
                 _lock.ExitWriteLock();
             }
+
+            CollectionEventHandler?.Invoke(
+                this,
+                new CollectionEventArgs<T>(removed.ToArray(), CollectionEventTypeEnum.Removed)
+            );
         }
 
         /// <summary>
@@ -203,16 +215,16 @@ namespace SafeCollections
             {
                 _lock.EnterWriteLock();
                 _list.Clear();
-
-                CollectionEventHandler?.Invoke(
-                    this,
-                    new CollectionEventArgs<T>(null, CollectionEventTypeEnum.Cleared)
-                );
             }
             finally
             {
                 _lock.ExitWriteLock();
             }
+
+            CollectionEventHandler?.Invoke(
+                this,
+                new CollectionEventArgs<T>(null, CollectionEventTypeEnum.Cleared)
+            );
         }
 
         /// <summary>
@@ -229,26 +241,41 @@ namespace SafeCollections
         /// <param name="handler">The handler.</param>
         public void SignOnEvents(EventHandler<CollectionEventArgs<T>> handler)
         {
-            // Send collection state (all items) before sending changes.
-            if (_sendCollectionState)
+            if (handler == null) return;
+            T[] snapshot = null;
+
+            // Lock to prevent race conditions during concurrent subscriptions
+            lock (_eventLock)
             {
-                try
+                // Send collection state (all items) before sending changes.
+                if (_sendCollectionState)
                 {
-                    _lock.EnterReadLock();
-                    handler.Invoke(
-                        this,
-                        new CollectionEventArgs<T>(_list.ToArray(), CollectionEventTypeEnum.None)
-                    );
+                    try
+                    {
+                        _lock.EnterReadLock();
+                        // Take snapshot and immediately subscribe the handler inside the lock,
+                        // ensuring no concurrent modifications from other threads are missed.
+                        snapshot = _list.ToArray();
+                        CollectionEventHandler += handler;
+                    }
+                    finally
+                    {
+                        _lock.ExitReadLock();
+                    }
+                }
+                else
+                {
                     CollectionEventHandler += handler;
                 }
-                finally
-                {
-                    _lock.ExitReadLock();
-                }
             }
-            else
+
+            // Invoke the handler to deliver the initial snapshot strictly outside of any locks
+            if (snapshot != null)
             {
-                CollectionEventHandler += handler;
+                handler.Invoke(
+                    this,
+                    new CollectionEventArgs<T>(snapshot, CollectionEventTypeEnum.None)
+                );
             }
         }
 
@@ -258,7 +285,10 @@ namespace SafeCollections
         /// <param name="handler">The handler.</param>
         public void UnSignFromEvents(EventHandler<CollectionEventArgs<T>> handler)
         {
-            CollectionEventHandler -= handler;
+            lock (_eventLock)
+            {
+                CollectionEventHandler -= handler;
+            }
         }
     }
 }
