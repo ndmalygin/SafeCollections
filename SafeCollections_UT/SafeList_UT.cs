@@ -68,7 +68,15 @@ namespace SafeCollections_UT
 
         [Theory]
         [InlineData(1000)]
-        public void MultiThreadingTest(int taskCount)
+        [InlineData(2000)]
+        [InlineData(3000)]
+        [InlineData(4000)]
+        [InlineData(5000)]
+        [InlineData(10000)]
+        [InlineData(20000)]
+        [InlineData(50000)]
+        [InlineData(100000)]
+        public async Task MultiThreadingTest(int taskCount)
         {
             var tasks = new List<Task>();
             var random = new Random();
@@ -100,7 +108,7 @@ namespace SafeCollections_UT
             }
 
             Parallel.ForEach(tasks, t => t.Start());
-            Task.WhenAll(tasks);
+            await Task.WhenAll(tasks);
 
             Assert.Equal(taskCount, safeList.Length);
 
@@ -133,7 +141,7 @@ namespace SafeCollections_UT
             }
 
             Parallel.ForEach(tasks, t => t.Start());
-            Task.WhenAll(tasks);
+            await Task.WhenAll(tasks);
             
             Assert.Empty(safeList.Items);
             Assert.Equal(0, safeList.Length);
