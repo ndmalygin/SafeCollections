@@ -7,6 +7,8 @@ using Xunit;
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
+
 // ReSharper disable UnusedParameter.Local
 
 namespace SafeCollections_UT
@@ -81,8 +83,6 @@ namespace SafeCollections_UT
         public async Task MultiThreadingTest(int taskCount)
         {
             var tasks = new List<Task>();
-            var random = new Random();
-
             var origList = new ConcurrentBag<TestObject>();
             var safeList = new SafeList<TestObject>(false);
             
@@ -101,7 +101,7 @@ namespace SafeCollections_UT
                 tasks.Add(
                     new Task(() =>
                     {
-                        var item = new TestObject(random.Next());
+                        var item = new TestObject(Random.Shared.Next());
                         
                         origList.Add(item);
                         safeList.AddItem(item);                        
@@ -313,6 +313,96 @@ namespace SafeCollections_UT
             Assert.Contains(30, resultItems);  // From unmanaged slice
             Assert.Contains(600, resultItems); // From stack allocation
             Assert.DoesNotContain(60, resultItems); // Elements after index 5 in native memory were sliced out
+        }
+        
+        [Theory]
+        [InlineData(1000)]
+        [InlineData(5000)]
+        [InlineData(10000)]
+        [InlineData(20000)]
+        public async Task ChaoticMultiThreadingLoadAndConsistencyTest(int taskCount)
+        {
+            // Arrange
+            var safeList = new SafeList<TestObject>(sendCollectionState: false);
+            var tasks = new List<Task>();
+
+            // Atomic counters to track exact state changes across all threads
+            int successfulAdds = 0;
+            int successfulRemoves = 0;
+
+            // Shared helper to keep track of items currently inside the collection
+            var activeItems = new ConcurrentBag<TestObject>();
+
+            EventHandler<CollectionEventArgs<TestObject>> handler = (sender, args) =>
+            {
+                // Ensure event is fired with correct event types during heavy load
+                Assert.True(args.CollectionEventType == CollectionEventTypeEnum.Added || 
+                            args.CollectionEventType == CollectionEventTypeEnum.Removed ||
+                            args.CollectionEventType == CollectionEventTypeEnum.ItemIsAlreadyExisted ||
+                            args.CollectionEventType == CollectionEventTypeEnum.ItemNotFound);
+            };
+
+            safeList.SignOnEvents(handler);
+
+            // Act
+            for (int i = 0; i < taskCount; i++)
+            {
+                int currentId = i;
+
+                tasks.Add(Task.Run(() =>
+                {
+                    // Randomly choose between Add (0) and Remove (1) operation in a thread-safe manner
+                    int operationType = Random.Shared.Next(0, 2); 
+
+                    if (operationType == 0)
+                    {
+                        // Operation: Add
+                        var item = new TestObject(currentId);
+                        if (safeList.AddItem(item))
+                        {
+                            Interlocked.Increment(ref successfulAdds);
+                            activeItems.Add(item);
+                        }
+                    }
+                    else
+                    {
+                        // Operation: Remove
+                        // Try to grab an item that was previously added by any thread
+                        if (activeItems.TryTake(out var itemToRemove))
+                        {
+                            if (safeList.RemoveItem(itemToRemove))
+                            {
+                                Interlocked.Increment(ref successfulRemoves);
+                            }
+                        }
+                        else
+                        {
+                            // If no items are ready yet, simulate a noisy remove attempt with a ghost item
+                            var ghostItem = new TestObject(-currentId);
+                            safeList.RemoveItem(ghostItem);
+                        }
+                    }
+                }));
+            }
+
+            // Wait for all chaotic additions and removals to complete
+            await Task.WhenAll(tasks);
+            safeList.UnSignFromEvents(handler);
+
+            // Assert
+            // Consistency Check: The actual length must precisely match (Adds - Removes)
+            int expectedLength = successfulAdds - successfulRemoves;
+            Assert.Equal(expectedLength, safeList.Length);
+
+            // Snapshot Check: The array returned by .Items must have the exact same size
+            var finalItems = safeList.Items;
+            Assert.Equal(expectedLength, finalItems.Length);
+
+            // Strict Integrity Check: All remaining items in our tracking bag must exist in the SafeList
+            foreach (var remainingItem in activeItems)
+            {
+                Assert.Contains(remainingItem, finalItems);
+            }
         }
     }
 }
