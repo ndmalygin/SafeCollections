@@ -1,12 +1,9 @@
-# SafeCollections 🚀
-
-[![Language](https://shields.io)](https://microsoft.com)
-[![Framework](https://shields.io)](https://microsoft.com)
-[![License: MIT](https://shields.io)](LICENSE)
+# SafeCollections
 
 A high-performance, production-ready, thread-safe collection designed specifically for event-driven architectures where uniqueness, $O(1)$ lookup speed, and immediate state synchronization are critical.
 
-## 💡 The Problem
+
+## The Problem
 
 Standard .NET concurrent collections fall short when you need a combination of:
 1. **Thread-safety** under heavy concurrent read/write loads.
@@ -18,7 +15,7 @@ Standard .NET concurrent collections fall short when you need a combination of:
 
 ---
 
-## ⚡ Key Features
+## Key Features
 
 * **Advanced Synchronization:** Powered by `ReaderWriterLockSlim`, allowing multiple concurrent readers to access data simultaneously without blocking each other, while maintaining strict isolation for write operations.
 * **$O(1)$ Efficiency:** Built on top of `HashSet<T>` to guarantee instant item lookups, additions, and removals regardless of collection size.
@@ -28,7 +25,7 @@ Standard .NET concurrent collections fall short when you need a combination of:
 
 ---
 
-## 🏗️ Architecture & Business Use-Case
+## Architecture & Business Use-Case
 
 Imagine a high-frequency financial trading system or a banking application tracking transactions throughout the trading day:
 
@@ -39,7 +36,7 @@ Imagine a high-frequency financial trading system or a banking application track
 
 ---
 
-## 💻 Quick Start
+## Quick Start
 
 ### Basic Usage
 
@@ -71,7 +68,7 @@ safeList.SignOnEvents((sender, args) =>
 
 ---
 
-## 🧪 Robust Testing & Stability
+## Robust Testing & Stability
 
 The project comes with a comprehensive suite of unit tests located in the `SafeCollections_UT` project, built using **xUnit**. 
 
@@ -82,12 +79,12 @@ The suite includes:
 
 ---
 
-## 🛠️ Infrastructure & Deployment
+## Infrastructure & Deployment
 
 The repository includes ready-to-use **Kubernetes Source-to-Image (s2i)** configurations, making it extremely straightforward to containerize and deploy this service into cloud-native microservice environments.
 
 ---
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
